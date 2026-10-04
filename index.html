@@ -118,10 +118,18 @@
   <div id="debug"></div>
   
   <!-- MindAR Image Tracking -->
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.3/dist/mindar-image.prod.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+    "mindar-image-three": "https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-three.prod.js"
+  }
+}
+</script>
   
   <script type="module">
+    import { MindARThree } from 'mindar-image-three';
     // ============================================
     // AUDIO CONFIGURATION
     // ============================================
@@ -265,7 +273,7 @@
       }
       
       // Initialize MindAR with Three.js
-      const mindarThree = new MINDAR.IMAGE.MindARThree({
+      const mindarThree = new MindARThree({
         container: document.getElementById('ar-container'),
         imageTargetSrc: 'targets.mind',
         maxTrack: 2,
