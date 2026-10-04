@@ -117,10 +117,11 @@
   </div>
   <div id="debug"></div>
   
-  <!-- MindAR Image Tracking - UMD build -->
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.3/dist/mindar-image-three.umd.min.js"></script>
+  <!-- MindAR Image Tracking -->
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.3/dist/mindar-image.prod.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   
-  <script>
+  <script type="module">
     // ============================================
     // AUDIO CONFIGURATION
     // ============================================
@@ -250,14 +251,6 @@
     
     const start = async () => {
       log('Initializing MindAR...');
-      
-      // Check if MINDAR is loaded
-      if (typeof MINDAR === 'undefined') {
-        log('ERROR: MINDAR library not loaded');
-        statusEl.textContent = 'Error: MindAR not loaded';
-        statusEl.className = 'scanning';
-        return;
-      }
       
       // Check if targets.mind exists
       try {
