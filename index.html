@@ -37,6 +37,56 @@
       font-size: 14px;
       z-index: 100;
       backdrop-filter: blur(4px);
+      min-width: 200px;
+      text-align: center;
+    }
+    
+    #status.playing {
+      background: rgba(0, 128, 0, 0.8);
+    }
+    
+    #status.queued {
+      background: rgba(255, 165, 0, 0.8);
+    }
+    
+    #status.scanning {
+      background: rgba(0, 0, 0, 0.7);
+    }
+    
+    #queue-display {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.8);
+      color: #fff;
+      padding: 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      z-index: 100;
+      min-width: 150px;
+    }
+    
+    #queue-display h3 {
+      margin: 0 0 8px 0;
+      font-size: 11px;
+      text-transform: uppercase;
+      color: #aaa;
+      letter-spacing: 0.5px;
+    }
+    
+    #queue-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    
+    #queue-list li {
+      padding: 4px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    #queue-list li:last-child {
+      border-bottom: none;
     }
     
     #debug {
@@ -48,7 +98,7 @@
       padding: 12px;
       border-radius: 6px;
       font-family: 'Courier New', monospace;
-      font-size: 12px;
+      font-size: 11px;
       z-index: 100;
       max-width: 300px;
       max-height: 200px;
@@ -58,7 +108,13 @@
 </head>
 <body>
   <div id="ar-container"></div>
-  <div id="status">Loading AR...</div>
+  <div id="status" class="scanning">Loading...</div>
+  <div id="queue-display">
+    <h3>Queue</h3>
+    <ul id="queue-list">
+      <li>Empty</li>
+    </ul>
+  </div>
   <div id="debug"></div>
   
   <!-- MindAR Image Tracking -->
@@ -66,9 +122,29 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   
   <script>
-    // Debug logging
-    const debugEl = document.getElementById('debug');
+    // ============================================
+    // AUDIO CONFIGURATION
+    // ============================================
+    
+    // Map target indices to audio file paths
+    const AUDIO_CONFIG = {
+      0: 'audio/track1.mp3',  // First target image
+      1: 'audio/track2.mp3',  // Second target image
+      2: 'audio/track3.mp3',  // Third target image (if you have one)
+    };
+    
+    // ============================================
+    // AUDIO QUEUE SYSTEM
+    // ============================================
+    
+    let audioPlayer = null;
+    let isPlaying = false;
+    let audioQueue = [];
+    let currentTrackName = '';
+    
     const statusEl = document.getElementById('status');
+    const queueListEl = document.getElementById('queue-list');
+    const debugEl = document.getElementById('debug');
     
     function log(msg) {
       const time = new Date().toLocaleTimeString();
@@ -77,36 +153,96 @@
       console.log(`[AR] ${msg}`);
     }
     
+    function updateQueueDisplay() {
+      if (audioQueue.length === 0) {
+        queueListEl.innerHTML = '<li>Empty</li>';
+      } else {
+        queueListEl.innerHTML = audioQueue.map((track, i) => 
+          `<li>${i === 0 ? '▶ ' : ''}${track.name}</li>`
+        ).join('');
+      }
+    }
+    
+    function playAudio(trackPath, trackName) {
+      if (isPlaying) {
+        log(`Queueing: ${trackName}`);
+        audioQueue.push({ path: trackPath, name: trackName });
+        updateQueueDisplay();
+        statusEl.textContent = `Queued: ${trackName}`;
+        statusEl.className = 'queued';
+        return;
+      }
+      
+      log(`Playing: ${trackName}`);
+      currentTrackName = trackName;
+      isPlaying = true;
+      statusEl.textContent = `Playing: ${trackName}`;
+      statusEl.className = 'playing';
+      
+      audioPlayer = new Audio(trackPath);
+      
+      audioPlayer.onended = () => {
+        log(`Finished: ${trackName}`);
+        isPlaying = false;
+        currentTrackName = '';
+        
+        // Play next in queue
+        if (audioQueue.length > 0) {
+          const next = audioQueue.shift();
+          updateQueueDisplay();
+          playAudio(next.path, next.name);
+        } else {
+          statusEl.textContent = 'Scanning...';
+          statusEl.className = 'scanning';
+          updateQueueDisplay();
+        }
+      };
+      
+      audioPlayer.onerror = (e) => {
+        log(`Audio error: ${trackPath}`);
+        isPlaying = false;
+        statusEl.textContent = 'Error loading audio';
+        statusEl.className = 'scanning';
+        
+        // Try next in queue
+        if (audioQueue.length > 0) {
+          const next = audioQueue.shift();
+          updateQueueDisplay();
+          playAudio(next.path, next.name);
+        }
+      };
+      
+      audioPlayer.play().catch(e => {
+        log(`Playback failed: ${e.message}`);
+        isPlaying = false;
+        statusEl.textContent = 'Playback blocked';
+        statusEl.className = 'scanning';
+      });
+    }
+    
     // ============================================
-    // CUSTOM TRIGGER FUNCTIONS - EDIT THESE
+    // AR TRIGGER FUNCTIONS
     // ============================================
     
     function onTargetFound(targetIndex) {
-      log(`✓ Target ${targetIndex} FOUND`);
-      statusEl.textContent = `Target ${targetIndex} detected!`;
-      statusEl.style.background = 'rgba(0, 128, 0, 0.8)';
+      const audioPath = AUDIO_CONFIG[targetIndex];
       
-      // YOUR CUSTOM LOGIC HERE
-      // Examples:
-      // - Play audio: new Audio('sound.mp3').play();
-      // - Show/hide DOM elements
-      // - Load video content
-      // - Trigger animations
-      // - Send analytics
-      // - Navigate to another page
+      if (!audioPath) {
+        log(`No audio configured for target ${targetIndex}`);
+        return;
+      }
+      
+      const trackName = audioPath.split('/').pop();
+      playAudio(audioPath, trackName);
     }
     
     function onTargetLost(targetIndex) {
-      log(`✗ Target ${targetIndex} LOST`);
-      statusEl.textContent = 'Scanning...';
-      statusEl.style.background = 'rgba(0, 0, 0, 0.7)';
-      
-      // YOUR CLEANUP LOGIC HERE
+      // Don't stop audio when target is lost - let it finish
+      log(`Target ${targetIndex} lost (audio continues)`);
     }
     
     function onTargetUpdate(targetIndex, anchor) {
       // Called every frame while target is tracked
-      // Use anchor.group.position, anchor.group.rotation, etc.
     }
     
     // ============================================
@@ -123,8 +259,8 @@
         log('✓ targets.mind loaded');
       } catch (e) {
         log('ERROR: ' + e.message);
-        statusEl.textContent = 'Error: Add targets.mind file';
-        statusEl.style.background = 'rgba(128, 0, 0, 0.8)';
+        statusEl.textContent = 'Error: targets.mind missing';
+        statusEl.className = 'scanning';
         return;
       }
       
@@ -132,46 +268,32 @@
       const mindarThree = new MINDAR.IMAGE.MindARThree({
         container: document.getElementById('ar-container'),
         imageTargetSrc: 'targets.mind',
-        maxTrack: 2, // track multiple targets simultaneously
+        maxTrack: 2,
       });
       
       const { renderer, scene, camera } = mindarThree;
       
-      // Optional: Add 3D content to anchors
-      // Anchor 0 (first target)
+      // Add anchors for each target
       const anchor0 = mindarThree.addAnchor(0);
-      
-      // Example 3D object - replace with your content
-      const geometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
-      const material = new THREE.MeshBasicMaterial({ 
-        color: 0x00ff88,
-        transparent: true,
-        opacity: 0.8
-      });
-      const cube = new THREE.Mesh(geometry, material);
-      cube.position.y = 0.25; // sit on top of target
-      anchor0.group.add(cube);
-      
-      // Wire up trigger callbacks
       anchor0.onTargetFound = () => onTargetFound(0);
       anchor0.onTargetLost = () => onTargetLost(0);
       anchor0.onTargetUpdate = () => onTargetUpdate(0, anchor0);
       
-      // Anchor 1 (second target) - if you have multiple
       const anchor1 = mindarThree.addAnchor(1);
-      const sphereGeo = new THREE.SphereGeometry(0.3, 32, 32);
-      const sphereMat = new THREE.MeshBasicMaterial({ color: 0xff0088 });
-      const sphere = new THREE.Mesh(sphereGeo, sphereMat);
-      anchor1.group.add(sphere);
-      
       anchor1.onTargetFound = () => onTargetFound(1);
       anchor1.onTargetLost = () => onTargetLost(1);
       anchor1.onTargetUpdate = () => onTargetUpdate(1, anchor1);
+      
+      const anchor2 = mindarThree.addAnchor(2);
+      anchor2.onTargetFound = () => onTargetFound(2);
+      anchor2.onTargetLost = () => onTargetLost(2);
+      anchor2.onTargetUpdate = () => onTargetUpdate(2, anchor2);
       
       // Start AR
       await mindarThree.start();
       log('AR started');
       statusEl.textContent = 'Scanning...';
+      statusEl.className = 'scanning';
       
       // Render loop
       renderer.setAnimationLoop(() => {
@@ -179,13 +301,11 @@
       });
     };
     
-    // Handle page load
     window.addEventListener('load', () => {
       log('Page loaded');
       start();
     });
     
-    // Handle visibility changes (pause/resume camera)
     document.addEventListener('visibilitychange', () => {
       log('Visibility: ' + document.visibilityState);
     });
